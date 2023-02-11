@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use std::{fs::write, fs::read_to_string};
 
 use serde::{Serialize, Deserialize};
@@ -125,7 +127,7 @@ impl Cluster {
 
     fn next_piece(&mut self, board: &GoBoard, x: usize, y: usize) {
         if x < board.size && y < board.size {
-            if board.board[y][x] == self.color {
+            if board.board[y][x] == self.color && board.board[y][x] != BoardCellOption::None {
                 if !self.pieces.contains(&[x, y]) {
                     self.pieces.push([x, y]);
                 }
@@ -284,10 +286,10 @@ impl GoBoardUi {
         draw_text_ex(
             format!("White captured: {} Black captured: {}", self.data.captured_white, self.data.captured_black).as_str(), 
             start.x, 
-            screen_height() - 40., 
+            start.y + board_height + board_width * 0.1, 
             TextParams { 
                 font: *font, 
-                font_size: (self.size * 0.8) as u16,
+                font_size: ((self.size * 0.8) as u16).min((screen_width() / 25.) as u16),
                 color: self.board_theme.foreground_color,
                 ..Default::default()
             }
@@ -295,7 +297,11 @@ impl GoBoardUi {
     }
 
     fn update(& mut self) {
-        self.size = screen_height() / (self.data.size + 4) as f32;
+        if screen_width() >= screen_height() {
+            self.size = screen_height() / (self.data.size + 4) as f32;
+        } else {
+            self.size = screen_width() / (self.data.size + 4) as f32;
+        }
 
         let board_width = self.size * (self.data.size.wrapping_sub(1)) as f32;
         let board_height = self.size * (self.data.size.wrapping_sub(1)) as f32;
@@ -330,7 +336,7 @@ impl GoBoardUi {
         }
 
         if is_key_pressed(KeyCode::S) {
-            self.data.save_to_file("save.json");
+            self.data.save_to_file("save.gs");
         }
     }
 }
@@ -361,14 +367,17 @@ async fn main() {
 
     let font = load_ttf_font("font_regular.ttf").await.unwrap();
 
-    let args = std::env::args();
+    let args = std::env::args().collect::<Vec<String>>();
 
     let mut go_game: GoBoardUi;
 
     if args.len() < 2 {
         go_game = GoBoardUi::new(19);
-    } else {
-        let board = GoBoard::load_from_file(args.collect::<Vec<String>>()[1].as_str());
+    } else if let Ok(num) = args[1].parse::<usize>() {
+        go_game = GoBoardUi::new(num);
+    }
+    else {
+        let board = GoBoard::load_from_file(args[1].as_str());
         go_game = GoBoardUi {
             data: board,
             size: 30.,
@@ -401,7 +410,7 @@ async fn main() {
         set_sound_volume(music, volume);
 
         if fade_time > 0. {
-            draw_text_ex(format!("{:.1}", volume).as_str(), screen_width() - 80., screen_height()  - 40., 
+            draw_text_ex(format!("{:.1}", volume).as_str(), screen_width() - screen_height() * 0.1, screen_height()  - screen_height() * 0.05, 
                 TextParams { 
                     font, 
                     font_size: (go_game.size * 0.8) as u16,
